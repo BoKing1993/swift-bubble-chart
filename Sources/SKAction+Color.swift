@@ -52,9 +52,9 @@ extension SKAction {
           node.fillColor = transColor
         }
 
-        if let label = node as? SKMultilineLabelNode {
-          label.fontColor = transColor
-        }
+//        if let label = node as? SKMultilineLabelNode {
+//          label.fontColor = transColor
+//        }
       }
     })
   }

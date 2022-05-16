@@ -1,9 +1,9 @@
 //
-//  Magnetic.swift
+//  Extensions.swift
 //  Magnetic
 //
-//  Created by Lasha Efremidze on 3/8/17.
-//  Copyright © 2017 efremidze. All rights reserved.
+//  Updated by Boking on 5/9/2022.
+//  Copyright © 2022 efremidze. All rights reserved.
 //
 
 import SpriteKit
@@ -14,7 +14,7 @@ import SpriteKit
     @objc optional func magnetic(_ magnetic: Magnetic, didRemove node: Node)
 }
 
-@objcMembers open class Magnetic: SKScene {
+@objcMembers open class Magnetic: SKScene, SKPhysicsContactDelegate {
     
     /**
      The field node that accelerates the nodes.
@@ -42,12 +42,26 @@ import SpriteKit
     open var longPressDuration: TimeInterval = 0.35
     
     open var isDragging: Bool = false
-    
+  
+    /**
+   Returns the magnetic nodes
+   */
+    open var nodes: [Node] {
+        return children.compactMap { $0 as? Node }
+    }
+  
     /**
      The selected children.
      */
     open var selectedChildren: [Node] {
-        return children.compactMap { $0 as? Node }.filter { $0.isSelected }
+        return nodes.filter { $0.isSelected }
+    }
+    
+    /**
+     The removed children.
+     */
+    open var removedChildren: [Node] {
+        return nodes.filter { $0.isRemoved }
     }
     
     /**
@@ -58,6 +72,10 @@ import SpriteKit
     open weak var magneticDelegate: MagneticDelegate?
     
     private var touchStarted: TimeInterval?
+
+    private var touchStartLocation: CGPoint?
+    
+    private var movingNode: SKNode?
     
     override open var size: CGSize {
         didSet {
@@ -88,6 +106,7 @@ import SpriteKit
         let radius = strength.squareRoot() * 100
         
         physicsWorld.gravity = CGVector(dx: 0, dy: 0)
+        physicsWorld.contactDelegate = self
         physicsBody = SKPhysicsBody(edgeLoopFrom: { () -> CGRect in
             var frame = self.frame
             frame.size.width = CGFloat(radius)
@@ -99,6 +118,7 @@ import SpriteKit
         magneticField.minimumRadius = radius
         magneticField.strength = strength
         magneticField.position = CGPoint(x: size.width / 2, y: size.height / 2)
+        magneticField.isEnabled = true
     }
     
     override open func addChild(_ node: SKNode) {
@@ -110,6 +130,75 @@ import SpriteKit
         node.position = CGPoint(x: x, y: y)
         super.addChild(node)
     }
+
+    public func didBegin(_ contact: SKPhysicsContact) {
+        let contactPoint = contact.contactPoint
+        guard let nodeA = contact.bodyA.node else { return }
+        guard let nodeB = contact.bodyB.node else { return }
+
+        
+        let positionA = nodeA.position
+        let positionB = nodeB.position
+        
+        var contactNode = nodeB
+        var x = positionB.x - contactPoint.x
+        var y = positionB.y - contactPoint.y
+        var distance = positionA.distance(from: contactPoint)
+        var implus = contact.collisionImpulse
+        
+//        guard movingNode != nil else {
+//            let lengthOfChildren = children.count
+//            guard lengthOfChildren > 2, lengthOfChildren < 6 else {
+//                magneticField.position = CGPoint(x: size.width / 2, y: size.height / 2)
+//                return
+//            }
+//            let centerNode = node(at: magneticField.position)
+//            let contacts = centerNode?.physicsBody?.allContactedBodies().count ?? 0
+//            if contacts == lengthOfChildren - 2 {
+//                var xAxisArray = [CGFloat]()
+//                var yAxisArray = [CGFloat]()
+//
+//                for child in children {
+//                    xAxisArray.append(child.position.x - child.frame.size.width / 2)
+//                    xAxisArray.append(child.position.x + child.frame.size.width / 2)
+//                    yAxisArray.append(child.position.y - child.frame.size.height / 2)
+//                    yAxisArray.append(child.position.y + child.frame.size.height / 2)
+//                }
+//
+//                let xMin = Float(xAxisArray.min() ?? 0)
+//                let yMax = Float(yAxisArray.max() ?? 0)
+//                let width = Float(xAxisArray.max() ?? 0) - xMin
+//                let height = yMax - Float(yAxisArray.min() ?? 0)
+//
+//                let x = (Float(size.width) - width) / 2
+//                let y = (Float(size.height) - height) / 2
+//
+//                let current = CGPoint(x: size.width / 2, y: size.height / 2)
+//
+//                print(">>>>>>>>", x, xMin, y, yMax)
+//
+//                if x != xMin || y != yMax {
+//                    magneticField.position = CGPoint(x: current.x - CGFloat(xMin - x), y: current.y - CGFloat(yMax - y))
+//                }
+//
+//            }
+//            return
+//        }
+        
+        if (movingNode === nodeB) {
+            contactNode = nodeA
+            x = positionA.x - contactPoint.x
+            y = positionA.y - contactPoint.y
+            distance = positionB.distance(from: contactPoint)
+            implus = contact.collisionImpulse * -1
+        }
+
+        if (movingNode === nodeA || movingNode === nodeB) {
+            let _: CGFloat = pow(distance, 1/2)
+            let direction = CGVector(dx: 20 * contact.contactNormal.dx * implus, dy: 20 * contact.contactNormal.dy * implus)
+            contactNode.physicsBody?.applyImpulse(direction)
+        }
+    }
     
 }
 
@@ -118,24 +207,29 @@ extension Magnetic {
     open override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard removeNodeOnLongPress, let touch = touches.first else { return }
         touchStarted = touch.timestamp
+        touchStartLocation = touch.location(in: self)
+        movingNode = node(at: touchStartLocation!)
+        movingNode?.physicsBody?.isDynamic = false
     }
     
     override open func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard let touch = touches.first else { return }
         let location = touch.location(in: self)
         let previous = touch.previousLocation(in: self)
-        guard location.distance(from: previous) != 0 else { return }
+        guard location.distance(from: previous) != 0 else {
+            return
+        }
         
         isDragging = true
         
-        moveNodes(location: location, previous: previous)
+        moveNode(location: location, previous: previous)
     }
     
     override open func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard let touch = touches.first else { return }
         let location = touch.location(in: self)
         
-        defer { isDragging = false }
+        defer { isDragging = false; movingNode?.physicsBody?.isDynamic = true; movingNode = nil }
         guard !isDragging, let node = node(at: location) else { return }
                 
         if removeNodeOnLongPress && !node.isSelected {
@@ -145,6 +239,7 @@ extension Magnetic {
             
             if (timeDiff >= longPressDuration) {
                 node.removedAnimation {
+                    node.isRemoved = true
                     self.magneticDelegate?.magnetic?(self, didRemove: node)
                 }
                 return
@@ -165,6 +260,8 @@ extension Magnetic {
     }
     
     override open func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+        movingNode?.physicsBody?.isDynamic = true
+        movingNode = nil
         isDragging = false
     }
     
@@ -180,66 +277,27 @@ extension Magnetic {
             let distance = node.position.distance(from: location)
             let acceleration: CGFloat = 3 * pow(distance, 1/2)
             let direction = CGVector(dx: x * acceleration, dy: y * acceleration)
-            node.physicsBody?.applyForce(direction)
+            node.physicsBody?.applyImpulse(direction)
         }
+    }
+
+    open func moveNode(location: CGPoint, previous: CGPoint) {
+        let x = location.x - previous.x
+        let y = location.y - previous.y
+        
+        let node = node(at: previous)
+        let distance = location.distance(from: previous)
+        let _: CGFloat = pow(distance, 1/3)
+        _ = CGVector(dx: 1, dy: 1)
+        node?.position =  CGPoint(x: (node?.position.x)! + x, y: (node?.position.y)! + y)
     }
     
     open func node(at point: CGPoint) -> Node? {
         return nodes(at: point).compactMap { $0 as? Node }.filter { $0.path!.contains(convert(point, to: $0)) }.first
     }
-    
-    /// Resets the `MagneticView` by making all visible `Node` objects vanish to a point.
-    open func reset() {
-        let speed = physicsWorld.speed
-        physicsWorld.speed = 0
-        let actions = removalActions()
-        run(.sequence(actions)) { [unowned self] in
-            self.physicsWorld.speed = speed
-        }
-    }
-    
-}
 
-/// An extension to handle the reset animation.
-extension Magnetic {
-    /// Retrieves an array of `Node` objects softed by distance.
-    ///
-    /// - Returns: `[Node]`
-    ///
-    func sortedNodes() -> [Node] {
-        return children.compactMap { $0 as? Node }.sorted { node, nextNode in
-            let distance = node.position.distance(from: magneticField.position)
-            let nextDistance = nextNode.position.distance(from: magneticField.position)
-            return distance < nextDistance && node.isSelected
-        }
+    open func getMovingNode() -> Node? {
+        return children.compactMap { $0 as? Node }.filter { abs(($0.physicsBody?.velocity.dx) ?? 0) < 0.1 && abs(($0.physicsBody?.velocity.dy) ?? 0) < 0.1 }.first
     }
     
-    /// Retrieves an array of `SKAction`s that are setup for reset animation.
-    ///
-    /// - Returns: `[SKAction]`
-    ///
-    func removalActions() -> [SKAction] {
-        var actions = [SKAction]()
-        for (index, node) in sortedNodes().enumerated() {
-            node.physicsBody = nil
-            let action = SKAction.run { [unowned self, unowned node] in
-                if node.isSelected {
-                    let point = CGPoint(x: self.size.width / 2, y: self.size.height + 40)
-                    let movingXAction = SKAction.moveTo(x: point.x, duration: 0.2)
-                    let movingYAction = SKAction.moveTo(y: point.y, duration: 0.4)
-                    let resize = SKAction.scale(to: 0.3, duration: 0.4)
-                    let throwAction = SKAction.group([movingXAction, movingYAction, resize])
-                    node.run(throwAction) { [unowned node] in
-                        node.removeFromParent()
-                    }
-                } else {
-                    node.removeFromParent()
-                }
-            }
-            actions.append(action)
-            let delay = SKAction.wait(forDuration: TimeInterval(index) * 0.002)
-            actions.append(delay)
-        }
-        return actions
-    }
 }

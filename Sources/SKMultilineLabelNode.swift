@@ -1,20 +1,33 @@
 //
-//  SKMultilineLabelNode.swift
+//  Extensions.swift
 //  Magnetic
 //
-//  Created by Lasha Efremidze on 5/11/17.
-//  Copyright © 2017 efremidze. All rights reserved.
+//  Updated by Boking on 5/9/2022.
+//  Copyright © 2022 efremidze. All rights reserved.
 //
 
 import SpriteKit
 
-@objcMembers open class SKMultilineLabelNode: SKNode {
+@objcMembers open class SKMultilineLabelNode: SKShapeNode {
     
-    open var text: String? { didSet { update() } }
+    open var value: String? { didSet { update() } }
+    open var title: String? { didSet { update() } }
+    open var subTitle: String? { didSet { update() } }
+    
+    open var iconNode: SKShapeNode?
+    open var icon: UIImage? { didSet { update() } }
+    
+    open var iconSize: CGFloat? { didSet { update() } }
     
     open var fontName: String? { didSet { update() } }
-    open var fontSize: CGFloat = 32 { didSet { update() } }
-    open var fontColor: UIColor? { didSet { update() } }
+
+    open var valueFontSize: CGFloat = 32 { didSet { update() } }
+    open var titleFontSize: CGFloat = 32 { didSet { update() } }
+    open var subTitleFontSize: CGFloat = 32 { didSet { update() } }
+
+    open var valueColor: UIColor? { didSet { update() } }
+    open var titleColor: UIColor? { didSet { update() } }
+    open var subTitleColor: UIColor? { didSet { update() } }
     
     open var separator: String? { didSet { update() } }
     
@@ -27,31 +40,131 @@ import SpriteKit
     
     func update() {
         self.removeAllChildren()
+
+        var valueStack = Stack<String>()
+        var titleStack = Stack<String>()
+        var subTitleStack = Stack<String>()
         
-        guard let text = text else { return }
-        
-        var stack = Stack<String>()
-        var sizingLabel = makeSizingLabel()
-        let words = separator.map { text.components(separatedBy: $0) } ?? text.map { String($0) }
-        for (index, word) in words.enumerated() {
-            sizingLabel.text += word
-            if sizingLabel.frame.width > width, index > 0 {
-                stack.add(toStack: word)
-                sizingLabel = makeSizingLabel()
-            } else {
-                stack.add(toCurrent: word)
+        if icon != nil && iconSize != nil {
+            iconNode = SKShapeNode(rect: CGRect(x: self.frame.width / 2, y: self.frame.height / 2, width: iconSize!, height: iconSize!))
+            iconNode?.fillColor = .white
+            iconNode?.fillTexture = icon.map { SKTexture(image: $0.aspectFill(CGSize(width: iconSize!, height: iconSize!))) }
+            iconNode?.strokeColor = UIColor(white: 1, alpha: 0)
+            self.addChild(iconNode!)
+        }
+
+        if value != nil {
+            let value = value!
+            var sizingLabel = makeSizingLabel()
+            let words = separator.map { value.components(separatedBy: $0) } ?? value.map { String($0) }
+            for (index, word) in words.enumerated() {
+                sizingLabel.text += word
+                if sizingLabel.frame.width > width, index > 0 {
+                    valueStack.add(toStack: word)
+                    sizingLabel = makeSizingLabel()
+                } else {
+                    valueStack.add(toCurrent: word)
+                }
             }
         }
         
-        let lines = stack.values.map { $0.joined(separator: separator ?? "") }
-        for (index, line) in lines.enumerated() {
+        if title != nil {
+            let title = title!
+            var sizingLabel = makeSizingLabel()
+            let words = separator.map { title.components(separatedBy: $0) } ?? title.map { String($0) }
+            for (index, word) in words.enumerated() {
+                sizingLabel.text += word
+                if sizingLabel.frame.width > width, index > 0 {
+                    titleStack.add(toStack: word)
+                    sizingLabel = makeSizingLabel()
+                } else {
+                    titleStack.add(toCurrent: word)
+                }
+            }
+        }
+        
+        if subTitle != nil {
+            let subTitle = subTitle!
+            var sizingLabel = makeSizingLabel()
+            let words = separator.map { subTitle.components(separatedBy: $0) } ?? subTitle.map { String($0) }
+            for (index, word) in words.enumerated() {
+                sizingLabel.text += word
+                if sizingLabel.frame.width > width, index > 0 {
+                    subTitleStack.add(toStack: word)
+                    sizingLabel = makeSizingLabel()
+                } else {
+                    subTitleStack.add(toCurrent: word)
+                }
+            }
+        }
+        
+        let valueLines = valueStack.values.map { $0.joined(separator: separator ?? "") }
+        let titleLines = titleStack.values.map { $0.joined(separator: separator ?? "") }
+        let subTitleLines = subTitleStack.values.map { $0.joined(separator: separator ?? "") }
+        var valueLineCount = 0
+        var titleLineCount = 0
+        var subTitleLineCount = 0
+        
+        if value != nil { valueLineCount = valueLines.count }
+        if title != nil { titleLineCount = titleLines.count }
+        if subTitle != nil { subTitleLineCount = subTitleLines.count }
+        
+        var valueHeight: CGFloat = CGFloat(valueLineCount) * (lineHeight ?? valueFontSize)
+        var titleHeight: CGFloat = CGFloat(titleLineCount) * (lineHeight ?? titleFontSize)
+        let subTitleHeight: CGFloat = CGFloat(subTitleLineCount) * (lineHeight ?? subTitleFontSize)
+        var iconHeight: CGFloat = 0
+        
+        if icon != nil && iconSize != nil { iconHeight = iconSize! }
+        
+        if valueLineCount != 0 && (titleLineCount != 0 || subTitleLineCount != 0) {
+            valueHeight = valueHeight + 2
+        }
+        
+        if subTitleLineCount != 0 && (valueLineCount != 0 || titleLineCount != 0) {
+            titleHeight = titleHeight + 2
+        }
+        
+        var height = valueHeight + titleHeight + subTitleHeight
+        
+        if iconNode != nil {
+            height = height + iconHeight + 4
+            iconHeight = iconHeight + 4
+            let yPoint = (height / 2) - iconHeight + 4
+            iconNode?.position = (CGPoint(x: self.frame.width / 2 - iconSize! / 2, y: yPoint))
+        }
+
+        for (index, line) in valueLines.enumerated() {
             let label = SKLabelNode(fontNamed: fontName)
             label.text = line
-            label.fontSize = fontSize
-            label.fontColor = fontColor
+            label.fontSize = valueFontSize
+            label.fontColor = valueColor
             label.verticalAlignmentMode = verticalAlignmentMode
             label.horizontalAlignmentMode = horizontalAlignmentMode
-            let y = (CGFloat(index) - (CGFloat(lines.count) / 2) + 0.5) * -(lineHeight ?? fontSize)
+            let y = (height / 2) - iconHeight - (CGFloat(index) + 0.5) * (lineHeight ?? valueFontSize)
+            label.position = CGPoint(x: 0, y: y)
+            self.addChild(label)
+        }
+        
+        for (index, line) in titleLines.enumerated() {
+            let label = SKLabelNode(fontNamed: fontName)
+            label.text = line
+            label.fontSize = titleFontSize
+            label.fontColor = titleColor
+            label.verticalAlignmentMode = verticalAlignmentMode
+            label.horizontalAlignmentMode = horizontalAlignmentMode
+            let y = (height / 2) - iconHeight - valueHeight - (CGFloat(index) + 0.5) * (lineHeight ?? titleFontSize)
+            label.position = CGPoint(x: 0, y: y)
+            self.addChild(label)
+        }
+        
+        for (index, line) in subTitleLines.enumerated() {
+            let label = SKLabelNode(fontNamed: fontName)
+            label.text = line
+            label.fontSize = subTitleFontSize
+            label.fontColor = subTitleColor
+            label.verticalAlignmentMode = verticalAlignmentMode
+            label.horizontalAlignmentMode = horizontalAlignmentMode
+            let y = (height / 2) - iconHeight - valueHeight - titleHeight - (CGFloat(index) + 0.5) * (lineHeight ?? subTitleFontSize)
             label.position = CGPoint(x: 0, y: y)
             self.addChild(label)
         }
@@ -59,7 +172,7 @@ import SpriteKit
     
     private func makeSizingLabel() -> SKLabelNode {
         let label = SKLabelNode(fontNamed: fontName)
-        label.fontSize = fontSize
+        label.fontSize = titleFontSize
         return label
     }
     

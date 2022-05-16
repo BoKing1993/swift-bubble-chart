@@ -2,7 +2,7 @@
 //  ViewController.swift
 //  Example
 //
-//  Created by Lasha Efremidze on 3/8/17.
+//  Updated by Boking on 5/9/22.
 //  Copyright © 2017 efremidze. All rights reserved.
 //
 
@@ -31,7 +31,7 @@ class ViewController: UIViewController {
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         
-        for _ in 0..<12 {
+        for _ in 0..<3 {
             add(nil)
         }
     }
@@ -39,7 +39,11 @@ class ViewController: UIViewController {
     @IBAction func add(_ sender: UIControl?) {
         let name = UIImage.names.randomItem()
         let color = UIColor.colors.randomItem()
-        let node = Node(text: name.capitalized, image: UIImage(named: name), color: color, radius: 40)
+        let value = CGFloat(round(Double.random(in: 10.0 ... 100.0) * 10.0) / 10.0)
+        let node = Node(value: value, title: name.capitalized, surfix: "%", color: color, radius: 40)
+        node.value = value
+        node.icon = UIImage(named: name)
+        node.iconSize = 50
         node.scaleToFitContent = true
         node.selectedColor = UIColor.colors.randomItem()
         magnetic.addChild(node)
@@ -49,9 +53,9 @@ class ViewController: UIViewController {
         // magnetic.addChild(node)
     }
     
-    @IBAction func reset(_ sender: UIControl?) {
-        magneticView.magnetic.reset()
-    }
+//    @IBAction func reset(_ sender: UIControl?) {
+//        magneticView.magnetic.reset()
+//    }
     
 }
 

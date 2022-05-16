@@ -66,7 +66,6 @@ extension Array {
 }
 
 extension CGPoint {
-    
     func distance(from point: CGPoint) -> CGFloat {
         return hypot(point.x - x, point.y - y)
     }
